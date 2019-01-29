@@ -1,5 +1,131 @@
 @()
 
-@main("Welcome to Play") {
-  <h1>Welcome to Play!</h1>
-}
+<html lang="en">
+  <title>File Upload Example</title>
+  <style>
+    div {
+      margin-bottom: 15px;
+    }
+</style>
+  <body>
+    <a id="browseButton" href="#">Browse</a>
+    <a id="upLoadButton" href="#">Upload</a>
+    <a id="pauseButton" href="#">Pause Uploads</a>
+    <a id="cancelButton" href="#">Cancel All</a>
+    <span id="errorMsg" style="color: red;"></span>
+    <div id="uploadprogress">0 %</div>
+    <ul id="filestobeuploaded">
+		</ul>
+  </body>
+  <script src="@routes.Assets.versioned("javascripts/resumable.js")"></script>
+
+  <script>
+		window.onload = function() {
+          var r = new Resumable({
+            target:'/upload',
+            query:{}
+          });
+
+          var retries = 0;
+
+          r.assignBrowse(document.getElementById('browseButton'));
+          document.getElementById('upLoadButton').onclick = function(){
+            r.upload();
+            retries = 0;
+          }
+
+          document.getElementById('pauseButton').onclick = function(){
+            r.pause();
+          }
+
+          var filesSpace = document.getElementById('filestobeuploaded');
+          function addFileToList(file) {
+            var li = document.createElement('li');
+
+            var progressBar = document.createElement('span');
+            progressBar.textContent = '0 %';
+            progressBar.id = file.uniqueIdentifier + "-progress";
+
+            var fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = file.fileName;
+
+            var cancelButton = document.createElement('a');
+            cancelButton.href ='#';
+            cancelButton.textContent = 'Cancel';
+            cancelButton.onclick = function() {
+              file.cancel();
+              filesSpace.removeChild(li);
+            }
+
+            li.setAttribute('style','border: solid black thin;');
+            li.appendChild(fileNameSpan);
+            li.appendChild(document.createElement('br'));
+            li.appendChild(progressBar);
+            li.appendChild(document.createElement('br'));
+            li.appendChild(cancelButton);
+
+            filesSpace.appendChild(li);
+          }
+
+          document.getElementById('cancelButton').onclick = function() {
+            r.cancel();
+            retries = 0;
+          }
+
+          r.on('fileAdded', function(file){
+            addFileToList(file);
+          });
+
+          r.on('fileProgress', function(file) {
+            var progressBarToUpdate = document.getElementById(file.uniqueIdentifier + "-progress");
+            progressBarToUpdate.textContent = (file.progress(false) * 100.00) + '%';
+          });
+
+          r.on('fileSuccess', function(file) {
+            var progressBarToUpdate = document.getElementById(file.uniqueIdentifier + "-progress");
+            progressBarToUpdate.textContent = 'Upload Complete!';
+          });
+
+          var errorMsg = document.getElementById('errorMsg');
+          r.on('cancel', function(file) {
+            var anchors = filesSpace.getElementsByTagName('a');
+            for (var i = anchors.length - 1; i >= 0; i--) {
+              anchors[i].click();
+            };
+            errorMsg.textContent = 'Upload canceled';
+          });
+
+          var progress = document.getElementById('uploadprogress');
+          r.on('progress', function() {
+            progress.textContent = (r.progress() * 100.00)+'%';
+          });
+
+          r.on('fileError', function(file, msg){
+            var progressBarToUpdate = document.getElementById(file.uniqueIdentifier + "-progress");
+            progressBarToUpdate.textContent = msg;
+            errorMsg.textContent = msg;
+          });
+
+
+          r.on('fileRetry', function(file){
+            var progressBarToUpdate = document.getElementById(file.uniqueIdentifier + "-progress");
+            progressBarToUpdate.textContent = 'Retrying upload';
+            retries++
+            errorMsg.textContent = "Retried " + retries + "time(s)";
+            if(retries > 10) {
+              r.pause();
+              errorMsg.textContent = 'Pausing file upload after ' + retries + ' attempts';
+            }
+          });
+
+          r.on('error', function (message, file) {
+            errorMsg.textContent = message;
+          });
+
+          r.on('catchAll', function(eventX) {
+            console.log(eventX)
+          });
+
+        }
+	</script>
+</html>
